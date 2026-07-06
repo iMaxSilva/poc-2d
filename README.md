@@ -1,6 +1,6 @@
-# POC 2D Idle MMORPG Battle Demo
+# POC 2D Pixel Art Idle MMORPG Battle Demo
 
-Demo jogável 2D web/mobile para validar um combate idle/MMORPG com direção de arte própria.
+Demo jogável 2D web/mobile para validar combate idle/MMORPG com direção de arte própria em pixel art.
 
 Stack da POC:
 
@@ -39,11 +39,22 @@ Configure Pages para publicar via GitHub Actions. Este repo já inclui workflow 
 
 ## Demo incluída
 
-- Herói espadachim 2D com idle, caminhada, ataque e hit flash
-- Monstro 2D com idle, hit, morte e respawn
-- Fundo fantasy com parallax, partículas, névoa e leitura mobile
+- Herói espadachim 2D pixel art com idle, ataque e hit flash
+- Arma desenhada: espada curta com lâmina mágica azul
+- Armadura desenhada: azul escura, prata e detalhes dourados
+- Monstro autoral 2D pixel art: criatura corrompida da floresta, com olho roxo, chifres/galhos, garras e fogo do vazio
+- Cenário pixel art de floresta/ruínas, com camadas, chão em blocos e partículas
 - Barra de HP, dano flutuante, XP/gold popup e auto battle
 - Runtime Canvas TypeScript com arquitetura separada em entidades/cena/HUD
+
+## Arquivos principais
+
+```text
+src/game/BattleScene.ts     # loop, combate, input e HUD
+src/game/pixelSprites.ts    # herói, arma, armadura, monstro, FX e cenário pixel art
+src/game/studioSprites.ts   # shim para manter compatibilidade, agora reexporta pixelSprites
+src/game/core.ts            # primitivas de canvas, easing, barras e hit testing
+```
 
 ## Observação sobre LayaAir
 
