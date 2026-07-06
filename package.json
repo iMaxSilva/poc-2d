@@ -1,0 +1,19 @@
+{
+  "name": "poc-2d-idle-mmorpg-battle",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Web/mobile 2D idle MMORPG battle POC with LayaAir-oriented architecture.",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@vitejs/plugin-legacy": "^5.4.3",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.21"
+  }
+}
