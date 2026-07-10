@@ -1,4 +1,4 @@
-name: Deploy demo
+name: Deploy Eternal Rift
 
 on:
   push:
@@ -24,8 +24,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
       - name: Install dependencies
         run: npm install
+      - name: Typecheck
+        run: npm run typecheck
       - name: Build
         run: npm run build
       - name: Setup Pages
@@ -34,6 +37,7 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+
   deploy:
     environment:
       name: github-pages
