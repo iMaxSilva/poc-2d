@@ -54,6 +54,15 @@ jobs:
             -H "X-GitHub-Api-Version: 2022-11-28" \
             repos/${{ github.repository }}/pages 2>&1 | tee pages-status.log
 
+      - name: Smoke test live Pages
+        continue-on-error: true
+        run: |
+          curl -L -sS \
+            -D pages-live-headers.log \
+            -o pages-live.html \
+            -w "%{http_code}\n" \
+            https://imaxsilva.github.io/poc-2d/ | tee pages-live-status.log
+
       - name: Upload verification diagnostics
         if: always() && github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
@@ -63,6 +72,9 @@ jobs:
             typecheck.log
             build.log
             pages-status.log
+            pages-live-status.log
+            pages-live-headers.log
+            pages-live.html
           if-no-files-found: ignore
 
       - name: Upload failure diagnostics
