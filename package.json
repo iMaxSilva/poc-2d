@@ -1,9 +1,9 @@
 {
   "name": "eternal-rift-2d-mmorpg-combat",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "Responsive 2D pixel MMORPG combat vertical slice built with TypeScript, Canvas 2D and Vite.",
+  "description": "Asset-driven 2D pixel MMORPG vertical slice with animated spritesheets and a complete game HUD.",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc && vite build --base=./",
