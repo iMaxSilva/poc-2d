@@ -6,6 +6,8 @@
   "description": "Asset-driven 2D pixel MMORPG vertical slice with animated spritesheets and a complete game HUD.",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
+    "validate:assets": "python3 scripts/validate_assets.py",
+    "prebuild": "npm run validate:assets",
     "build": "tsc && vite build --base=./",
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc --noEmit"
