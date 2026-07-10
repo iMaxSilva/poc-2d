@@ -1,1 +1,1 @@
-GitHub Pages build diagnostic probe.
+GitHub Pages build diagnostic probe v2.
