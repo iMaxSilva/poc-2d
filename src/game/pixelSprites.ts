@@ -1,17 +1,8 @@
-import { drawText, roundedRect } from './core';
+import { clamp, drawDiamond, drawText, pulse, roundedRect, smoothStep } from './core';
 
-const px = (
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  color: string,
-  u: number,
-): void => {
-  ctx.fillStyle = color;
-  ctx.fillRect(Math.round(x * u), Math.round(y * u), Math.ceil(w * u), Math.ceil(h * u));
-};
+export type SkillKind = 'slash' | 'nova' | 'meteor' | 'potion';
+
+const snap = (value: number, unit = 1): number => Math.round(value / unit) * unit;
 
 const rect = (
   ctx: CanvasRenderingContext2D,
@@ -25,101 +16,346 @@ const rect = (
   ctx.fillRect(Math.round(x), Math.round(y), Math.ceil(w), Math.ceil(h));
 };
 
+const px = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  color: string,
+  unit: number,
+): void => rect(ctx, x * unit, y * unit, w * unit, h * unit, color);
+
+const polygon = (
+  ctx: CanvasRenderingContext2D,
+  points: Array<[number, number]>,
+  fill: string,
+  stroke?: string,
+): void => {
+  if (points.length < 3) return;
+  ctx.beginPath();
+  ctx.moveTo(points[0][0], points[0][1]);
+  for (let index = 1; index < points.length; index += 1) {
+    ctx.lineTo(points[index][0], points[index][1]);
+  }
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  if (stroke) {
+    ctx.strokeStyle = stroke;
+    ctx.stroke();
+  }
+};
+
+const glowDot = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  color: string,
+  alpha = 1,
+): void => {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = radius * 3;
+  ctx.fillStyle = color;
+  ctx.fillRect(Math.round(x - radius / 2), Math.round(y - radius / 2), Math.max(1, radius), Math.max(1, radius));
+  ctx.restore();
+};
+
+const drawMountainLayer = (
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  baseY: number,
+  unit: number,
+  color: string,
+  offset: number,
+  amplitude: number,
+): void => {
+  ctx.beginPath();
+  ctx.moveTo(0, baseY);
+  for (let x = -unit * 24; x <= width + unit * 24; x += unit * 18) {
+    const seed = Math.floor((x + offset) / (unit * 18));
+    const peak = baseY - unit * (amplitude + ((seed * 11) % 13));
+    ctx.lineTo(x + (offset % (unit * 18)), peak);
+    ctx.lineTo(x + unit * 18 + (offset % (unit * 18)), baseY);
+  }
+  ctx.lineTo(width, baseY + unit * 32);
+  ctx.lineTo(0, baseY + unit * 32);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+};
+
+const drawMoon = (ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, time: number): void => {
+  ctx.save();
+  const halo = ctx.createRadialGradient(x, y, radius * 0.1, x, y, radius * 2.4);
+  halo.addColorStop(0, 'rgba(232, 248, 255, 0.32)');
+  halo.addColorStop(0.5, 'rgba(99, 102, 241, 0.12)');
+  halo.addColorStop(1, 'rgba(99, 102, 241, 0)');
+  ctx.fillStyle = halo;
+  ctx.beginPath();
+  ctx.arc(x, y, radius * 2.4, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.shadowColor = '#bae6fd';
+  ctx.shadowBlur = 28;
+  ctx.fillStyle = '#e0f2fe';
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#c7d2fe';
+  ctx.globalAlpha = 0.45;
+  ctx.beginPath();
+  ctx.arc(x - radius * 0.28, y - radius * 0.17, radius * 0.16, 0, Math.PI * 2);
+  ctx.arc(x + radius * 0.22, y + radius * 0.3, radius * 0.11, 0, Math.PI * 2);
+  ctx.fill();
+
+  for (let index = 0; index < 8; index += 1) {
+    const angle = time * 0.06 + index * (Math.PI / 4);
+    const distance = radius * (1.35 + (index % 3) * 0.22);
+    glowDot(ctx, x + Math.cos(angle) * distance, y + Math.sin(angle) * distance, 2, '#dbeafe', 0.6);
+  }
+  ctx.restore();
+};
+
+const drawRuinedGate = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  groundY: number,
+  unit: number,
+  time: number,
+): void => {
+  const stoneDark = '#11192d';
+  const stone = '#24304a';
+  const edge = '#475569';
+  const moss = '#164e3f';
+
+  rect(ctx, x - unit * 49, groundY - unit * 44, unit * 10, unit * 44, stoneDark);
+  rect(ctx, x - unit * 45, groundY - unit * 52, unit * 10, unit * 52, stone);
+  rect(ctx, x - unit * 48, groundY - unit * 52, unit * 4, unit * 48, edge);
+  rect(ctx, x + unit * 35, groundY - unit * 57, unit * 11, unit * 57, stoneDark);
+  rect(ctx, x + unit * 39, groundY - unit * 62, unit * 10, unit * 62, stone);
+  rect(ctx, x + unit * 39, groundY - unit * 61, unit * 4, unit * 56, edge);
+
+  rect(ctx, x - unit * 48, groundY - unit * 58, unit * 26, unit * 6, stone);
+  rect(ctx, x + unit * 28, groundY - unit * 68, unit * 29, unit * 7, stone);
+  rect(ctx, x - unit * 46, groundY - unit * 60, unit * 13, unit * 2, moss);
+  rect(ctx, x + unit * 34, groundY - unit * 70, unit * 17, unit * 2, moss);
+
+  const portalPulse = 0.55 + pulse(time, 1.7) * 0.25;
+  ctx.save();
+  ctx.globalAlpha = portalPulse;
+  const portal = ctx.createRadialGradient(x, groundY - unit * 26, unit * 2, x, groundY - unit * 26, unit * 28);
+  portal.addColorStop(0, 'rgba(216, 180, 254, 0.38)');
+  portal.addColorStop(0.48, 'rgba(124, 58, 237, 0.22)');
+  portal.addColorStop(1, 'rgba(76, 29, 149, 0)');
+  ctx.fillStyle = portal;
+  ctx.fillRect(x - unit * 34, groundY - unit * 62, unit * 68, unit * 62);
+  ctx.restore();
+
+  for (let index = 0; index < 7; index += 1) {
+    const angle = time * (0.18 + index * 0.012) + index * 0.9;
+    const rx = unit * (13 + (index % 3) * 5);
+    const ry = unit * (20 + (index % 2) * 4);
+    glowDot(
+      ctx,
+      x + Math.cos(angle) * rx,
+      groundY - unit * 27 + Math.sin(angle) * ry,
+      unit * 0.7,
+      index % 2 === 0 ? '#c084fc' : '#67e8f9',
+      0.55,
+    );
+  }
+};
+
+const drawForegroundRocks = (ctx: CanvasRenderingContext2D, width: number, height: number, unit: number): void => {
+  ctx.save();
+  ctx.globalAlpha = 0.86;
+  for (let index = 0; index < 14; index += 1) {
+    const x = ((index * 137) % (width + unit * 20)) - unit * 8;
+    const y = height - unit * (4 + (index % 3));
+    const w = unit * (8 + (index % 5) * 3);
+    polygon(
+      ctx,
+      [
+        [x, y],
+        [x + w * 0.2, y - unit * (3 + (index % 4))],
+        [x + w * 0.6, y - unit * (5 + ((index + 2) % 3))],
+        [x + w, y],
+      ],
+      index % 2 === 0 ? '#080b14' : '#0d1220',
+    );
+  }
+  ctx.restore();
+};
+
 export const drawBattlefield = (
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
   time: number,
+  danger = 0,
 ): void => {
   ctx.save();
   ctx.imageSmoothingEnabled = false;
+  const unit = Math.max(2, Math.floor(Math.min(width, height) / 180));
+  const horizon = snap(height * 0.68, unit);
 
-  const unit = Math.max(3, Math.floor(Math.min(width, height) / 150));
-  const snap = (value: number) => Math.round(value / unit) * unit;
+  const sky = ctx.createLinearGradient(0, 0, 0, height);
+  sky.addColorStop(0, '#050713');
+  sky.addColorStop(0.38, danger > 0.5 ? '#21102f' : '#0b1632');
+  sky.addColorStop(0.7, '#10263a');
+  sky.addColorStop(1, '#07110f');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, width, height);
 
-  rect(ctx, 0, 0, width, height, '#14233f');
-  rect(ctx, 0, height * 0.16, width, height * 0.2, '#1f4b73');
-  rect(ctx, 0, height * 0.32, width, height * 0.18, '#1d5b6a');
+  drawMoon(ctx, width * 0.72, height * 0.18, clamp(width * 0.045, 25, 54), time);
 
-  for (let i = 0; i < 32; i += 1) {
-    const x = snap((i * 97 + time * 8) % (width + 160) - 80);
-    const y = snap(height * (0.12 + ((i * 23) % 18) / 100));
-    rect(ctx, x, y, unit * (8 + (i % 4) * 3), unit * 2, 'rgba(195,231,255,0.18)');
-    rect(ctx, x + unit * 3, y - unit, unit * (4 + (i % 3)), unit, 'rgba(195,231,255,0.14)');
+  for (let index = 0; index < 46; index += 1) {
+    const x = snap((index * 89 + Math.sin(index * 4.7) * 41) % width, unit);
+    const y = snap(height * (0.06 + ((index * 17) % 40) / 100), unit);
+    const flicker = 0.22 + pulse(time + index, 1.3 + (index % 4)) * 0.44;
+    rect(ctx, x, y, index % 7 === 0 ? unit * 2 : unit, unit, `rgba(186,230,253,${flicker})`);
   }
 
-  drawPixelMountains(ctx, width, height, unit, '#183b59', height * 0.42, time * 0.1);
-  drawPixelMountains(ctx, width, height, unit, '#102f42', height * 0.51, time * 0.18);
+  drawMountainLayer(ctx, width, horizon - unit * 30, unit, '#121a32', time * 2.2, 26);
+  drawMountainLayer(ctx, width, horizon - unit * 17, unit, '#101b2b', time * 3.4, 19);
 
-  const groundY = snap(height * 0.72);
-  rect(ctx, 0, groundY, width, height - groundY, '#163a2a');
-  rect(ctx, 0, groundY + unit * 9, width, height - groundY, '#0c2119');
+  const fog = ctx.createLinearGradient(0, horizon - unit * 32, 0, horizon + unit * 8);
+  fog.addColorStop(0, 'rgba(125, 211, 252, 0)');
+  fog.addColorStop(0.5, 'rgba(125, 211, 252, 0.10)');
+  fog.addColorStop(1, 'rgba(125, 211, 252, 0)');
+  ctx.fillStyle = fog;
+  ctx.fillRect(0, horizon - unit * 36, width, unit * 48);
 
-  for (let x = 0; x < width; x += unit * 9) {
-    const y = groundY + ((x / unit) % 5) * unit;
-    rect(ctx, x, y, unit * 8, unit * 2, '#6c5f3d');
-    rect(ctx, x + unit, y + unit * 2, unit * 7, unit, '#9b8050');
+  ctx.fillStyle = '#0b201d';
+  ctx.fillRect(0, horizon, width, height - horizon);
+  ctx.fillStyle = '#102d25';
+  ctx.fillRect(0, horizon, width, unit * 10);
+  ctx.fillStyle = '#173b2e';
+  for (let x = -unit * 4; x < width + unit * 4; x += unit * 7) {
+    const offset = ((x / unit) % 4) * unit;
+    rect(ctx, x, horizon + offset * 0.2, unit * 5, unit * 2, '#315744');
+    rect(ctx, x + unit, horizon + unit * 2 + offset * 0.2, unit * 4, unit, '#56745b');
   }
 
-  drawPixelRuins(ctx, snap(width * 0.5), groundY, unit);
-  drawPixelTree(ctx, snap(width * 0.08), groundY + unit * 9, unit, time);
-  drawPixelTree(ctx, snap(width * 0.92), groundY + unit * 7, unit, time + 1.7);
+  drawRuinedGate(ctx, width * 0.52, horizon + unit * 3, unit, time);
 
-  for (let i = 0; i < 48; i += 1) {
-    const x = snap((i * 53 + Math.sin(time + i) * 5) % width);
-    const y = snap(groundY - unit * (2 + (i * 7) % 24));
-    const color = i % 3 === 0 ? '#7dd3fc' : i % 3 === 1 ? '#a7f3d0' : '#c084fc';
-    rect(ctx, x, y, unit, unit, color);
+  for (let index = 0; index < 34; index += 1) {
+    const drift = Math.sin(time * (0.4 + (index % 5) * 0.06) + index) * unit * 5;
+    const x = ((index * 103 + time * (index % 2 === 0 ? 3 : -2)) % (width + unit * 20)) - unit * 10;
+    const y = horizon - unit * (3 + ((index * 13) % 34)) + drift;
+    const color = index % 3 === 0 ? '#67e8f9' : index % 3 === 1 ? '#a7f3d0' : '#c084fc';
+    glowDot(ctx, x, y, unit * (index % 8 === 0 ? 1.2 : 0.7), color, 0.35 + pulse(time + index) * 0.35);
   }
 
+  drawForegroundRocks(ctx, width, height, unit);
   ctx.restore();
 };
 
-const drawPixelMountains = (
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  unit: number,
-  color: string,
-  baseY: number,
-  drift: number,
-): void => {
-  ctx.fillStyle = color;
+const drawHeroShadow = (ctx: CanvasRenderingContext2D, unit: number, attack: number): void => {
+  ctx.save();
+  ctx.globalAlpha = 0.42;
+  ctx.fillStyle = '#000000';
   ctx.beginPath();
-  ctx.moveTo(0, baseY);
-  for (let x = -unit * 20; x <= width + unit * 20; x += unit * 16) {
-    const peak = baseY - unit * (12 + ((x / unit + Math.floor(drift)) % 9));
-    ctx.lineTo(x, peak);
-    ctx.lineTo(x + unit * 16, baseY);
-  }
-  ctx.lineTo(width, height);
-  ctx.lineTo(0, height);
-  ctx.closePath();
+  ctx.ellipse(unit * (attack > 0 ? 4 : 0), unit * 12, unit * 19, unit * 5, 0, 0, Math.PI * 2);
   ctx.fill();
+  ctx.restore();
 };
 
-const drawPixelRuins = (ctx: CanvasRenderingContext2D, x: number, y: number, u: number): void => {
-  const c1 = '#52616f';
-  const c2 = '#2d3748';
-  const moss = '#5d8b3c';
-  rect(ctx, x - u * 54, y - u * 42, u * 9, u * 42, c1);
-  rect(ctx, x - u * 51, y - u * 38, u * 6, u * 38, c2);
-  rect(ctx, x - u * 60, y - u * 45, u * 20, u * 5, c1);
-  rect(ctx, x + u * 36, y - u * 48, u * 10, u * 48, c1);
-  rect(ctx, x + u * 39, y - u * 43, u * 7, u * 43, c2);
-  rect(ctx, x + u * 28, y - u * 51, u * 26, u * 5, c1);
-  rect(ctx, x + u * 36, y - u * 38, u * 10, u * 4, '#78d5ff');
-  rect(ctx, x - u * 50, y - u * 48, u * 6, u * 3, moss);
-  rect(ctx, x + u * 30, y - u * 54, u * 18, u * 3, moss);
-  rect(ctx, x - u * 68, y - u * 2, u * 136, u * 3, '#273241');
+const drawHeroCape = (ctx: CanvasRenderingContext2D, unit: number, time: number, attack: number): void => {
+  const sway = Math.round(Math.sin(time * 4.2) * 1.5 - attack * 4);
+  px(ctx, -15 + sway, -29, 10, 31, '#0a1738', unit);
+  px(ctx, -19 + sway, -21, 7, 24, '#102a5f', unit);
+  px(ctx, -17 + sway, -3, 12, 8, '#17428f', unit);
+  px(ctx, -15 + sway, 4, 9, 5, '#2563eb', unit);
+  px(ctx, -13 + sway, 8, 7, 3, '#f59e0b', unit);
+  px(ctx, -18 + sway, -17, 3, 11, '#38bdf8', unit);
 };
 
-const drawPixelTree = (ctx: CanvasRenderingContext2D, x: number, y: number, u: number, time: number): void => {
-  const sway = Math.round(Math.sin(time * 0.9) * u);
-  rect(ctx, x - u * 4, y - u * 38, u * 8, u * 38, '#4a2e18');
-  rect(ctx, x - u * 9 + sway, y - u * 34, u * 18, u * 7, '#0f3b2e');
-  rect(ctx, x - u * 14 + sway, y - u * 28, u * 28, u * 8, '#13553c');
-  rect(ctx, x - u * 11 + sway, y - u * 21, u * 22, u * 8, '#1c704c');
+const drawHeroLegs = (ctx: CanvasRenderingContext2D, unit: number, time: number, attack: number): void => {
+  const step = attack > 0 ? 2 : Math.sin(time * 5.5) > 0 ? 1 : -1;
+  px(ctx, -7 - step, -2, 6, 13, '#111827', unit);
+  px(ctx, 2 + step, -2, 6, 13, '#111827', unit);
+  px(ctx, -8 - step, 5, 6, 6, '#334155', unit);
+  px(ctx, 3 + step, 5, 6, 6, '#334155', unit);
+  px(ctx, -10 - step, 10, 10, 4, '#64748b', unit);
+  px(ctx, 2 + step, 10, 11, 4, '#64748b', unit);
+  px(ctx, -9 - step, 10, 8, 2, '#cbd5e1', unit);
+  px(ctx, 3 + step, 10, 8, 2, '#cbd5e1', unit);
+};
+
+const drawHeroTorso = (ctx: CanvasRenderingContext2D, unit: number, flash: number, skill: number): void => {
+  const silver = flash > 0 ? '#ffffff' : '#cbd5e1';
+  px(ctx, -12, -29, 23, 28, '#060b18', unit);
+  px(ctx, -10, -27, 19, 24, '#102b68', unit);
+  px(ctx, -8, -25, 15, 20, '#1d4ed8', unit);
+  px(ctx, -12, -26, 6, 10, silver, unit);
+  px(ctx, 6, -26, 6, 10, silver, unit);
+  px(ctx, -11, -16, 5, 12, '#64748b', unit);
+  px(ctx, 6, -16, 5, 12, '#64748b', unit);
+  px(ctx, -5, -24, 10, 8, '#1e293b', unit);
+  px(ctx, -3, -23, 6, 5, '#67e8f9', unit);
+  px(ctx, -1, -21, 2, 2, '#ffffff', unit);
+  px(ctx, -5, -14, 10, 10, '#0f172a', unit);
+  px(ctx, -10, -3, 19, 4, '#92400e', unit);
+  px(ctx, -2, -4, 5, 5, '#fbbf24', unit);
+  if (skill > 0) {
+    const glow = 0.45 + skill * 0.55;
+    glowDot(ctx, 0, -20 * unit, unit * 1.4, '#67e8f9', glow);
+  }
+};
+
+const drawHeroHead = (ctx: CanvasRenderingContext2D, unit: number, time: number): void => {
+  px(ctx, -8, -43, 16, 14, '#e5ad83', unit);
+  px(ctx, -10, -47, 18, 9, '#111827', unit);
+  px(ctx, -12, -43, 7, 11, '#0f172a', unit);
+  px(ctx, 5, -43, 6, 8, '#0f172a', unit);
+  px(ctx, -7, -46, 4, 3, '#334155', unit);
+  px(ctx, 1, -46, 6, 3, '#1e293b', unit);
+  px(ctx, -5, -37, 2, 2, '#67e8f9', unit);
+  px(ctx, 4, -37, 2, 2, '#67e8f9', unit);
+  if (Math.floor(time * 2.2) % 9 === 0) {
+    px(ctx, -5, -37, 2, 1, '#0f172a', unit);
+    px(ctx, 4, -37, 2, 1, '#0f172a', unit);
+  }
+  px(ctx, -2, -32, 5, 2, '#9a5e47', unit);
+};
+
+const drawHeroArm = (ctx: CanvasRenderingContext2D, unit: number, attack: number): void => {
+  const reach = attack > 0 ? Math.sin(clamp(attack, 0, 1) * Math.PI) * 7 : 0;
+  px(ctx, 7 + reach, -23, 6, 15, '#1e3a8a', unit);
+  px(ctx, 8 + reach, -22, 5, 7, '#94a3b8', unit);
+  px(ctx, 8 + reach, -10, 6, 5, '#e5ad83', unit);
+};
+
+const drawHeroSword = (ctx: CanvasRenderingContext2D, unit: number, attack: number, skill: number): void => {
+  ctx.save();
+  const attackCurve = Math.sin(clamp(attack, 0, 1) * Math.PI);
+  const swing = attack > 0 ? -1.1 + smoothStep(attack) * 2.25 : -0.3;
+  const skillSpin = skill > 0 ? skill * Math.PI * 2.8 : 0;
+  ctx.translate((12 + attackCurve * 7) * unit, -11 * unit);
+  ctx.rotate(swing + skillSpin);
+
+  rect(ctx, -2 * unit, -1 * unit, 4 * unit, 12 * unit, '#713f12');
+  rect(ctx, -7 * unit, 8 * unit, 14 * unit, 3 * unit, '#fbbf24');
+  rect(ctx, -2 * unit, 8 * unit, 4 * unit, 5 * unit, '#fde68a');
+  rect(ctx, -3 * unit, -31 * unit, 6 * unit, 40 * unit, '#dbeafe');
+  rect(ctx, 1 * unit, -29 * unit, 3 * unit, 35 * unit, '#38bdf8');
+  rect(ctx, -3 * unit, -32 * unit, 4 * unit, 4 * unit, '#ffffff');
+  rect(ctx, -1 * unit, -27 * unit, 2 * unit, 25 * unit, '#eff6ff');
+
+  ctx.save();
+  ctx.globalAlpha = 0.38 + attackCurve * 0.45 + skill * 0.35;
+  ctx.shadowColor = skill > 0 ? '#c084fc' : '#38bdf8';
+  ctx.shadowBlur = unit * 7;
+  rect(ctx, -4 * unit, -34 * unit, 8 * unit, 44 * unit, skill > 0 ? '#c084fc' : '#67e8f9');
+  ctx.restore();
+  ctx.restore();
 };
 
 export const drawHero = (
@@ -127,199 +363,417 @@ export const drawHero = (
   x: number,
   y: number,
   scale: number,
-  phase: number,
+  time: number,
   attack: number,
+  skill: number,
   flash: number,
 ): void => {
-  const u = Math.max(2.2, 3.25 * scale);
-  const frame = attack > 0 ? Math.min(7, Math.floor(attack * 8)) : Math.floor(phase * 7) % 6;
-  const bob = attack > 0 ? 0 : Math.round(Math.sin(phase * 4) * u);
-  const lunge = attack > 0 ? Math.sin(Math.min(attack, 1) * Math.PI) * u * 10 : 0;
+  const unit = Math.max(2.15, 3.25 * scale);
+  const bob = attack > 0 || skill > 0 ? 0 : Math.round(Math.sin(time * 4.6) * unit * 0.65);
+  const lunge = attack > 0 ? Math.sin(clamp(attack, 0, 1) * Math.PI) * unit * 9 : skill > 0 ? unit * 2 : 0;
 
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   ctx.translate(Math.round(x + lunge), Math.round(y + bob));
+  if (flash > 0) {
+    ctx.shadowColor = '#ffffff';
+    ctx.shadowBlur = 22;
+  }
 
-  ctx.fillStyle = 'rgba(0,0,0,0.32)';
-  ctx.fillRect(-22 * u, 12 * u, 42 * u, 7 * u);
+  drawHeroShadow(ctx, unit, attack);
+  drawHeroCape(ctx, unit, time, attack);
+  drawHeroLegs(ctx, unit, time, attack);
+  drawHeroTorso(ctx, unit, flash, skill);
+  drawHeroHead(ctx, unit, time);
+  drawHeroArm(ctx, unit, attack);
+  drawHeroSword(ctx, unit, attack, skill);
 
-  const capeShift = attack > 0 ? -4 : Math.round(Math.sin(phase * 5) * 2);
-  drawHeroCape(ctx, u, capeShift);
-  drawHeroLegs(ctx, u, frame, attack);
-  drawHeroBody(ctx, u, flash);
-  drawHeroHead(ctx, u, frame);
-  drawHeroSword(ctx, u, attack, frame);
-
+  if (skill > 0) {
+    for (let index = 0; index < 8; index += 1) {
+      const angle = time * 3 + index * (Math.PI / 4);
+      const radius = unit * (17 + skill * 8);
+      glowDot(ctx, Math.cos(angle) * radius, -unit * 17 + Math.sin(angle) * radius * 0.5, unit, '#67e8f9', 0.7);
+    }
+  }
   ctx.restore();
 };
 
-const drawHeroCape = (ctx: CanvasRenderingContext2D, u: number, shift: number): void => {
-  px(ctx, -13 + shift, -25, 10, 33, '#10264b', u);
-  px(ctx, -17 + shift, -14, 6, 20, '#173a75', u);
-  px(ctx, -12 + shift, 6, 9, 6, '#244f96', u);
-  px(ctx, -14 + shift, 11, 6, 4, '#d0a94f', u);
+const drawBossShadow = (ctx: CanvasRenderingContext2D, unit: number, dead: number): void => {
+  ctx.save();
+  ctx.globalAlpha = 0.5 * (1 - dead);
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(0, unit * 16, unit * 31, unit * 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 };
 
-const drawHeroLegs = (ctx: CanvasRenderingContext2D, u: number, frame: number, attack: number): void => {
-  const stride = attack > 0 ? 3 : frame % 2 === 0 ? 1 : -1;
-  px(ctx, -7 - stride, -1, 6, 12, '#1f2937', u);
-  px(ctx, 3 + stride, -1, 6, 12, '#1f2937', u);
-  px(ctx, -9 - stride, 9, 9, 4, '#9ca3af', u);
-  px(ctx, 2 + stride, 9, 10, 4, '#9ca3af', u);
-  px(ctx, -8 - stride, 0, 5, 4, '#64748b', u);
-  px(ctx, 4 + stride, 0, 5, 4, '#64748b', u);
+const drawBossAura = (ctx: CanvasRenderingContext2D, unit: number, time: number, hit: number, charge: number): void => {
+  ctx.save();
+  const aura = ctx.createRadialGradient(0, -unit * 18, unit * 2, 0, -unit * 18, unit * 42);
+  aura.addColorStop(0, `rgba(216,180,254,${0.2 + charge * 0.45})`);
+  aura.addColorStop(0.48, `rgba(124,58,237,${0.1 + charge * 0.24})`);
+  aura.addColorStop(1, 'rgba(76,29,149,0)');
+  ctx.fillStyle = aura;
+  ctx.fillRect(-unit * 48, -unit * 68, unit * 96, unit * 86);
+
+  for (let index = 0; index < 11; index += 1) {
+    const angle = time * (0.7 + index * 0.015) + index * 0.58;
+    const radius = unit * (25 + (index % 4) * 4 + charge * 9);
+    glowDot(
+      ctx,
+      Math.cos(angle) * radius,
+      -unit * 18 + Math.sin(angle) * radius * 0.72,
+      unit * (index % 5 === 0 ? 1.4 : 0.8),
+      hit > 0 ? '#ffffff' : index % 2 === 0 ? '#c084fc' : '#fb7185',
+      0.45 + charge * 0.35,
+    );
+  }
+  ctx.restore();
 };
 
-const drawHeroBody = (ctx: CanvasRenderingContext2D, u: number, flash: number): void => {
-  const silver = flash > 0 ? '#ffffff' : '#cbd5e1';
-  px(ctx, -10, -24, 20, 24, '#111827', u);
-  px(ctx, -8, -22, 16, 20, '#1e3a8a', u);
-  px(ctx, -10, -23, 5, 8, silver, u);
-  px(ctx, 5, -23, 5, 8, silver, u);
-  px(ctx, -6, -17, 12, 5, '#334155', u);
-  px(ctx, -5, -11, 10, 8, '#0f172a', u);
-  px(ctx, -2, -23, 4, 22, '#facc15', u);
-  px(ctx, -8, -2, 16, 3, '#a16207', u);
+const drawBossHorns = (ctx: CanvasRenderingContext2D, unit: number, time: number): void => {
+  const sway = Math.sin(time * 2.7) * unit;
+  polygon(ctx, [[-unit * 13, -unit * 47], [-unit * 29 + sway, -unit * 67], [-unit * 20, -unit * 42]], '#27133d');
+  polygon(ctx, [[unit * 13, -unit * 47], [unit * 30 - sway, -unit * 66], [unit * 20, -unit * 42]], '#27133d');
+  polygon(ctx, [[-unit * 14, -unit * 49], [-unit * 26 + sway, -unit * 63], [-unit * 20, -unit * 46]], '#7c3aed');
+  polygon(ctx, [[unit * 14, -unit * 49], [unit * 27 - sway, -unit * 62], [unit * 20, -unit * 46]], '#7c3aed');
+  rect(ctx, -unit * 27 + sway, -unit * 64, unit * 4, unit * 4, '#f0abfc');
+  rect(ctx, unit * 24 - sway, -unit * 63, unit * 4, unit * 4, '#f0abfc');
 };
 
-const drawHeroHead = (ctx: CanvasRenderingContext2D, u: number, frame: number): void => {
-  px(ctx, -7, -38, 14, 12, '#f4c29b', u);
-  px(ctx, -9, -43, 17, 9, '#0f172a', u);
-  px(ctx, -11, -39, 8, 7, '#111827', u);
-  px(ctx, 4, -39, 6, 6, '#111827', u);
-  px(ctx, -4, -34, 2, 2, '#60a5fa', u);
-  px(ctx, 4, -34, 2, 2, '#60a5fa', u);
-  if (frame % 3 === 0) {
-    px(ctx, -9, -45, 10, 3, '#1e293b', u);
+const drawBossBody = (ctx: CanvasRenderingContext2D, unit: number, hit: number): void => {
+  const edge = hit > 0 ? '#ffffff' : '#7c3aed';
+  px(ctx, -20, -42, 40, 49, '#130b22', unit);
+  px(ctx, -24, -31, 48, 31, '#21103a', unit);
+  px(ctx, -19, -40, 38, 42, '#32105a', unit);
+  px(ctx, -14, -35, 28, 35, '#4c1d95', unit);
+  px(ctx, -21, -26, 7, 23, edge, unit);
+  px(ctx, 14, -26, 7, 23, edge, unit);
+  px(ctx, -13, -10, 26, 10, '#1b102d', unit);
+  px(ctx, -9, -31, 18, 17, '#251144', unit);
+  px(ctx, -5, -27, 10, 10, '#fb7185', unit);
+  px(ctx, -2, -24, 4, 4, '#ffffff', unit);
+  px(ctx, -11, -6, 22, 5, '#6d28d9', unit);
+};
+
+const drawBossFace = (ctx: CanvasRenderingContext2D, unit: number, time: number, hit: number): void => {
+  px(ctx, -15, -53, 30, 19, '#170d25', unit);
+  px(ctx, -12, -50, 24, 14, '#2e1065', unit);
+  px(ctx, -10, -48, 20, 7, '#111827', unit);
+  px(ctx, -8, -46, 16, 4, hit > 0 ? '#ffffff' : '#fb7185', unit);
+  px(ctx, -4, -45, 8, 2, '#ffffff', unit);
+  px(ctx, -8, -38, 5, 3, '#6b2140', unit);
+  px(ctx, 3, -38, 5, 3, '#6b2140', unit);
+  if (Math.floor(time * 3) % 7 === 0) {
+    px(ctx, -6, -45, 12, 1, '#111827', unit);
   }
 };
 
-const drawHeroSword = (ctx: CanvasRenderingContext2D, u: number, attack: number, frame: number): void => {
-  ctx.save();
-  const progress = Math.min(attack, 1);
-  const swing = attack > 0 ? -0.78 + Math.sin(progress * Math.PI) * 1.45 : -0.18 + (frame % 2) * 0.03;
-  ctx.translate(9 * u, -14 * u);
-  ctx.rotate(swing);
-  rect(ctx, -2 * u, -2 * u, 4 * u, 12 * u, '#7c4a16');
-  rect(ctx, -8 * u, 8 * u, 16 * u, 3 * u, '#facc15');
-  rect(ctx, -2 * u, -28 * u, 4 * u, 36 * u, '#dbeafe');
-  rect(ctx, 2 * u, -26 * u, 2 * u, 31 * u, '#60a5fa');
-  rect(ctx, -4 * u, -30 * u, 4 * u, 4 * u, '#ffffff');
-  ctx.restore();
+const drawBossArms = (ctx: CanvasRenderingContext2D, unit: number, time: number, charge: number): void => {
+  const raise = charge * unit * 11;
+  const sway = Math.sin(time * 3.4) * unit * 1.2;
+  px(ctx, -31, -30 - raise / unit, 12, 31, '#1f1234', unit);
+  px(ctx, 19, -30 - raise / unit, 12, 31, '#1f1234', unit);
+  px(ctx, -34, -4 - raise / unit, 14, 8, '#4c1d95', unit);
+  px(ctx, 20, -4 - raise / unit, 14, 8, '#4c1d95', unit);
+  px(ctx, -37 + sway / unit, 1 - raise / unit, 7, 8, '#c084fc', unit);
+  px(ctx, 30 - sway / unit, 1 - raise / unit, 7, 8, '#c084fc', unit);
+  px(ctx, -39 + sway / unit, 5 - raise / unit, 4, 7, '#f0abfc', unit);
+  px(ctx, 35 - sway / unit, 5 - raise / unit, 4, 7, '#f0abfc', unit);
 };
 
-export const drawMonster = (
+const drawBossLegs = (ctx: CanvasRenderingContext2D, unit: number): void => {
+  px(ctx, -16, -2, 11, 17, '#130b22', unit);
+  px(ctx, 5, -2, 11, 17, '#130b22', unit);
+  px(ctx, -19, 10, 15, 6, '#312e81', unit);
+  px(ctx, 4, 10, 15, 6, '#312e81', unit);
+  px(ctx, -20, 13, 17, 4, '#7c3aed', unit);
+  px(ctx, 3, 13, 17, 4, '#7c3aed', unit);
+};
+
+export const drawBoss = (
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   scale: number,
-  phase: number,
+  time: number,
   hit: number,
   dead: number,
+  attackCharge: number,
 ): void => {
-  const u = Math.max(2, 3.05 * scale);
-  const wobble = dead > 0 ? 0 : Math.round(Math.sin(phase * 5) * 2);
-  const squash = dead > 0 ? 1 - dead * 0.55 : 1;
-  const frame = dead > 0 ? Math.floor(dead * 6) : hit > 0 ? 1 : Math.floor(phase * 6) % 6;
+  const unit = Math.max(2, 3.08 * scale);
+  const bob = dead > 0 ? 0 : Math.sin(time * 3.7) * unit * 1.1;
+  const squash = 1 - dead * 0.72;
+  const fall = dead * unit * 22;
 
   ctx.save();
   ctx.imageSmoothingEnabled = false;
-  ctx.translate(Math.round(x), Math.round(y + dead * u * 16));
-  ctx.scale(1, squash);
-  ctx.globalAlpha = 1 - dead * 0.72;
+  ctx.translate(Math.round(x), Math.round(y + bob + fall));
+  ctx.scale(1 + dead * 0.22, Math.max(0.18, squash));
+  ctx.globalAlpha = 1 - dead * 0.86;
 
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.fillRect(-31 * u, 11 * u, 62 * u, 8 * u);
+  drawBossShadow(ctx, unit, dead);
+  drawBossAura(ctx, unit, time, hit, attackCharge);
+  drawBossHorns(ctx, unit, time);
+  drawBossArms(ctx, unit, time, attackCharge);
+  drawBossLegs(ctx, unit);
+  drawBossBody(ctx, unit, hit);
+  drawBossFace(ctx, unit, time, hit);
 
-  if (dead > 0.78) {
-    drawMonsterAsh(ctx, u, dead);
+  if (attackCharge > 0) {
+    const radius = unit * (7 + attackCharge * 18);
+    ctx.save();
+    ctx.globalAlpha = 0.45 + attackCharge * 0.55;
+    ctx.shadowColor = '#fb7185';
+    ctx.shadowBlur = unit * 12;
+    ctx.strokeStyle = '#fb7185';
+    ctx.lineWidth = Math.max(2, unit * 0.7);
+    ctx.beginPath();
+    ctx.arc(0, -unit * 22, radius, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.restore();
-    return;
   }
-
-  const flash = hit > 0 ? '#f5d0fe' : '#25113e';
-  px(ctx, -28, -17 + wobble, 44, 28, flash, u);
-  px(ctx, -22, -22 + wobble, 38, 20, '#172915', u);
-  px(ctx, -17, -25 + wobble, 29, 12, '#31572c', u);
-  px(ctx, -4, -20 + wobble, 27, 26, '#2e1065', u);
-  px(ctx, -31, -6 + wobble, 10, 11, '#0f1f12', u);
-  px(ctx, 13, -5 + wobble, 19, 11, '#0f1f12', u);
-
-  // Head facing left
-  px(ctx, -34, -24 + wobble, 22, 21, hit > 0 ? '#ffffff' : '#33185d', u);
-  px(ctx, -39, -15 + wobble, 9, 8, '#1b0b2e', u);
-  px(ctx, -31, -18 + wobble, 5, 5, '#a855f7', u);
-  px(ctx, -30, -17 + wobble, 2, 2, '#ffffff', u);
-  px(ctx, -36, -8 + wobble, 13, 3, '#e9d5ff', u);
-
-  // Branch horns and claws
-  px(ctx, -34, -31 + wobble, 5, 8, '#4a2e18', u);
-  px(ctx, -31, -36 + wobble, 3, 5, '#6b4f2a', u);
-  px(ctx, -17, -31 + wobble, 5, 9, '#4a2e18', u);
-  px(ctx, -14, -39 + wobble, 3, 8, '#6b4f2a', u);
-  px(ctx, -29, 7, 8, 5, '#a3e635', u);
-  px(ctx, -6, 7, 8, 5, '#a3e635', u);
-  px(ctx, 18, 7, 8, 5, '#a3e635', u);
-
-  // Purple corruption fire
-  const flame = frame % 2 === 0 ? 0 : -2;
-  px(ctx, -8, -33 + flame, 5, 10, '#9333ea', u);
-  px(ctx, 5, -35 - flame, 5, 12, '#7e22ce', u);
-  px(ctx, 14, -31 + flame, 4, 8, '#c084fc', u);
-
   ctx.restore();
 };
 
-const drawMonsterAsh = (ctx: CanvasRenderingContext2D, u: number, dead: number): void => {
-  px(ctx, -28, 0, 48, 11, '#291047', u);
-  px(ctx, -18, -5, 30, 6, '#43206f', u);
-  px(ctx, -4, -16, 5, 14, '#a855f7', u);
-  px(ctx, 7, -11, 4, 10, '#c084fc', u);
-  if (dead > 0.9) {
-    px(ctx, -21, -19, 3, 3, '#c084fc', u);
-    px(ctx, 16, -22, 3, 3, '#c084fc', u);
-  }
-};
-
-export const drawSlash = (
+export const drawWeaponTrail = (
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
+  scale: number,
   progress: number,
+  critical = false,
 ): void => {
-  const alpha = 1 - progress;
+  const p = clamp(progress, 0, 1);
+  const radius = 56 * scale;
+  const start = -Math.PI * 0.72;
+  const end = start + Math.PI * 1.35 * smoothStep(p);
   ctx.save();
-  ctx.imageSmoothingEnabled = false;
-  ctx.globalAlpha = alpha;
-  ctx.translate(Math.round(x), Math.round(y));
-  const u = 5;
-  const color = '#7dd3fc';
-  const white = '#f8fafc';
-  const points = [
-    [-18, -18, 8, 4, color],
-    [-11, -24, 12, 4, white],
-    [0, -30, 16, 5, color],
-    [12, -25, 18, 5, white],
-    [23, -16, 13, 5, color],
-    [28, -7, 8, 4, white],
-  ] as const;
-  points.forEach(([pxx, pyy, w, h, c]) => rect(ctx, pxx * u, pyy * u, w * u, h * u, c));
+  ctx.translate(x, y);
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.lineCap = 'square';
+
+  for (let layer = 0; layer < 3; layer += 1) {
+    ctx.globalAlpha = (0.45 - layer * 0.11) * (1 - p * 0.42);
+    ctx.strokeStyle = critical ? (layer === 0 ? '#ffffff' : '#fbbf24') : layer === 0 ? '#ffffff' : '#67e8f9';
+    ctx.lineWidth = (13 - layer * 4) * scale;
+    ctx.shadowColor = critical ? '#f59e0b' : '#38bdf8';
+    ctx.shadowBlur = 20 * scale;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius + layer * 5 * scale, start, end);
+    ctx.stroke();
+  }
   ctx.restore();
 };
 
-export const drawLogo = (ctx: CanvasRenderingContext2D, x: number, y: number): void => {
+export const drawArcaneNova = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  scale: number,
+  progress: number,
+): void => {
+  const p = clamp(progress, 0, 1);
+  const eased = smoothStep(p);
   ctx.save();
-  ctx.imageSmoothingEnabled = false;
-  roundedRect(ctx, x, y, 236, 58, 0);
-  ctx.fillStyle = 'rgba(7, 12, 24, 0.72)';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(125, 211, 252, 0.28)';
-  ctx.stroke();
-  drawText(ctx, 'MYTHVALE 2D', x + 16, y + 27, { size: 19, weight: 900, color: '#e0f2fe' });
-  drawText(ctx, 'pixel idle combat prototype', x + 16, y + 44, {
-    size: 10,
-    weight: 800,
-    color: '#93c5fd',
-  });
+  ctx.translate(x, y);
+  ctx.globalCompositeOperation = 'lighter';
+
+  for (let ring = 0; ring < 3; ring += 1) {
+    ctx.globalAlpha = (1 - p) * (0.8 - ring * 0.16);
+    ctx.strokeStyle = ring === 0 ? '#ffffff' : ring === 1 ? '#67e8f9' : '#8b5cf6';
+    ctx.lineWidth = Math.max(1, (7 - ring * 2) * scale);
+    ctx.shadowColor = '#67e8f9';
+    ctx.shadowBlur = 24 * scale;
+    ctx.beginPath();
+    ctx.arc(0, 0, (24 + eased * (118 + ring * 12)) * scale, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  for (let index = 0; index < 16; index += 1) {
+    const angle = index * (Math.PI / 8) + p * 1.2;
+    const r1 = (30 + eased * 36) * scale;
+    const r2 = (48 + eased * 104) * scale;
+    ctx.globalAlpha = (1 - p) * 0.72;
+    ctx.strokeStyle = index % 2 === 0 ? '#67e8f9' : '#c084fc';
+    ctx.lineWidth = 2 * scale;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(angle) * r1, Math.sin(angle) * r1);
+    ctx.lineTo(Math.cos(angle) * r2, Math.sin(angle) * r2);
+    ctx.stroke();
+  }
   ctx.restore();
+};
+
+export const drawMeteor = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  scale: number,
+  progress: number,
+): void => {
+  const p = clamp(progress, 0, 1);
+  const impact = p < 0.58 ? 0 : (p - 0.58) / 0.42;
+  const fall = clamp(p / 0.58, 0, 1);
+  const meteorY = y - (230 - fall * 210) * scale;
+  const meteorX = x + (1 - fall) * 90 * scale;
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  if (impact <= 0) {
+    ctx.strokeStyle = '#f97316';
+    ctx.lineWidth = 15 * scale;
+    ctx.globalAlpha = 0.42;
+    ctx.beginPath();
+    ctx.moveTo(meteorX + 85 * scale, meteorY - 85 * scale);
+    ctx.lineTo(meteorX, meteorY);
+    ctx.stroke();
+
+    const gradient = ctx.createRadialGradient(meteorX, meteorY, 1, meteorX, meteorY, 27 * scale);
+    gradient.addColorStop(0, '#ffffff');
+    gradient.addColorStop(0.25, '#fde68a');
+    gradient.addColorStop(0.6, '#f97316');
+    gradient.addColorStop(1, 'rgba(190,24,93,0)');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(meteorX, meteorY, 29 * scale, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.globalAlpha = 1 - impact;
+    const gradient = ctx.createRadialGradient(x, y, 1, x, y, (35 + impact * 130) * scale);
+    gradient.addColorStop(0, '#ffffff');
+    gradient.addColorStop(0.18, '#fbbf24');
+    gradient.addColorStop(0.48, '#f97316');
+    gradient.addColorStop(1, 'rgba(190,24,93,0)');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(x, y, (36 + impact * 130) * scale, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 6 * scale;
+    ctx.beginPath();
+    ctx.ellipse(x, y + 12 * scale, (40 + impact * 150) * scale, (9 + impact * 22) * scale, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+};
+
+export const drawBossTelegraph = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  progress: number,
+): void => {
+  const p = clamp(progress, 0, 1);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = 0.34 + p * 0.46;
+  ctx.strokeStyle = p > 0.72 ? '#ffffff' : '#fb7185';
+  ctx.lineWidth = 3 + p * 4;
+  ctx.setLineDash([12, 8]);
+  ctx.lineDashOffset = -p * 56;
+  ctx.beginPath();
+  ctx.ellipse(x, y, radius * (0.62 + p * 0.38), radius * 0.26, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  const fill = ctx.createRadialGradient(x, y, 1, x, y, radius);
+  fill.addColorStop(0, `rgba(251,113,133,${0.04 + p * 0.12})`);
+  fill.addColorStop(0.7, `rgba(239,68,68,${0.03 + p * 0.08})`);
+  fill.addColorStop(1, 'rgba(239,68,68,0)');
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.ellipse(x, y, radius, radius * 0.32, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+};
+
+export const drawSkillIcon = (
+  ctx: CanvasRenderingContext2D,
+  kind: SkillKind,
+  x: number,
+  y: number,
+  size: number,
+  time: number,
+): void => {
+  const unit = size / 32;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.imageSmoothingEnabled = false;
+
+  if (kind === 'slash') {
+    ctx.rotate(-0.62);
+    rect(ctx, -unit * 3, -unit * 12, unit * 6, unit * 25, '#dbeafe');
+    rect(ctx, unit, -unit * 10, unit * 3, unit * 21, '#38bdf8');
+    rect(ctx, -unit * 7, unit * 9, unit * 14, unit * 3, '#fbbf24');
+    rect(ctx, -unit * 2, unit * 11, unit * 4, unit * 8, '#713f12');
+  } else if (kind === 'nova') {
+    for (let index = 0; index < 8; index += 1) {
+      const angle = time * 0.8 + index * (Math.PI / 4);
+      ctx.strokeStyle = index % 2 === 0 ? '#67e8f9' : '#c084fc';
+      ctx.lineWidth = unit * 2;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(angle) * unit * 5, Math.sin(angle) * unit * 5);
+      ctx.lineTo(Math.cos(angle) * unit * 13, Math.sin(angle) * unit * 13);
+      ctx.stroke();
+    }
+    drawDiamond(ctx, 0, 0, unit * 7, '#e0f2fe', '#67e8f9');
+    drawDiamond(ctx, 0, 0, unit * 3, '#7c3aed');
+  } else if (kind === 'meteor') {
+    const fire = 0.7 + pulse(time, 5) * 0.3;
+    polygon(ctx, [[-unit * 12, unit * 12], [unit * 9, -unit * 9], [unit * 13, -unit * 4], [-unit * 7, unit * 16]], `rgba(249,115,22,${fire})`);
+    ctx.fillStyle = '#fbbf24';
+    ctx.beginPath();
+    ctx.arc(unit * 6, -unit * 6, unit * 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(unit * 4, -unit * 8, unit * 3, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    rect(ctx, -unit * 8, -unit * 7, unit * 16, unit * 19, '#e2e8f0');
+    rect(ctx, -unit * 5, -unit * 11, unit * 10, unit * 5, '#94a3b8');
+    rect(ctx, -unit * 5, -unit * 2, unit * 10, unit * 9, '#22c55e');
+    rect(ctx, -unit * 2, -unit * 7, unit * 4, unit * 15, '#bbf7d0');
+  }
+  ctx.restore();
+};
+
+export const drawLogo = (ctx: CanvasRenderingContext2D, x: number, y: number, compact = false): void => {
+  const size = compact ? 32 : 40;
+  ctx.save();
+  ctx.translate(x, y);
+  const gradient = ctx.createLinearGradient(0, 0, size, size);
+  gradient.addColorStop(0, '#67e8f9');
+  gradient.addColorStop(0.55, '#3b82f6');
+  gradient.addColorStop(1, '#8b5cf6');
+  ctx.shadowColor = '#38bdf8';
+  ctx.shadowBlur = 18;
+  roundedRect(ctx, 0, 0, size, size, 11);
+  ctx.fillStyle = gradient;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  polygon(
+    ctx,
+    [
+      [size * 0.25, size * 0.22],
+      [size * 0.47, size * 0.22],
+      [size * 0.47, size * 0.42],
+      [size * 0.72, size * 0.42],
+      [size * 0.72, size * 0.62],
+      [size * 0.47, size * 0.62],
+      [size * 0.47, size * 0.82],
+      [size * 0.25, size * 0.82],
+    ],
+    '#07111f',
+  );
+  ctx.restore();
+
+  if (!compact) {
+    drawText(ctx, 'ETERNAL', x + size + 12, y + 15, { size: 11, weight: 900, color: '#7dd3fc', letterSpacing: 2 });
+    drawText(ctx, 'RIFT', x + size + 12, y + 34, { size: 21, weight: 950, color: '#ffffff', letterSpacing: 1 });
+  }
 };
