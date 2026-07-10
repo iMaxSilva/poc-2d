@@ -247,7 +247,7 @@ export class BattleScene {
 
   private update(dt: number): void {
     this.heroFlash = Math.max(0, this.heroFlash - dt);
-    this.heroHit = Math.max(0, this.heroHit - dt);
+    this.heroHit = this.heroHp > 0 ? Math.max(0, this.heroHit - dt) : this.heroHit + dt;
     this.invulnerable = Math.max(0, this.invulnerable - dt);
     this.bossHit = Math.max(0, this.bossHit - dt);
     this.worldFlash = Math.max(0, this.worldFlash - dt);
@@ -300,10 +300,7 @@ export class BattleScene {
       if (this.bossDeath > 2.45) this.respawnBoss();
     }
 
-    if (this.heroHp <= 0) {
-      this.heroHit += dt;
-      if (this.heroHit > 2.2) this.reviveHero();
-    }
+    if (this.heroHp <= 0 && this.heroHit > 2.2) this.reviveHero();
 
     this.updateFx(dt);
   }
