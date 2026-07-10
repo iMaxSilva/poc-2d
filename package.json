@@ -1,9 +1,9 @@
 {
-  "name": "poc-2d-idle-mmorpg-battle",
-  "version": "0.1.0",
+  "name": "eternal-rift-2d-mmorpg-combat",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Web/mobile 2D idle MMORPG battle POC with LayaAir-oriented architecture.",
+  "description": "Responsive 2D pixel MMORPG combat vertical slice built with TypeScript, Canvas 2D and Vite.",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc && vite build --base=./",
