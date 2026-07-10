@@ -1,61 +1,78 @@
-# POC 2D Pixel Art Idle MMORPG Battle Demo
+# Eternal Rift — 2D Pixel MMORPG Combat Vertical Slice
 
-Demo jogável 2D web/mobile para validar combate idle/MMORPG com direção de arte própria em pixel art.
+Uma vertical slice jogável de combate MMORPG 2D para web e mobile, construída com TypeScript, Canvas 2D e Vite.
 
-Stack da POC:
+A POC foi redesenhada para demonstrar direção de arte pixelizada, feedback de combate, skills, boss encounter, HUD responsivo e publicação estática no GitHub Pages sem dependências de runtime.
 
-- LayaAir/Layabox-oriented project structure (`src`, `assets`, TypeScript)
-- Web build estático hospedável em GitHub Pages, Netlify, Vercel ou Cloudflare Pages
-- Sem backend nesta primeira versão; o combate é client-side apenas para validar UX, animação e direção visual
+## Jogabilidade
 
-## Rodar local
+- **Ataque básico:** toque na arena ou use `Space`.
+- **Arc Nova:** use `Q` ou toque no ícone azul.
+- **Starfall:** use `R` ou toque no ícone de meteoro.
+- **Poção:** use `F` ou toque no frasco.
+- **Auto Battle:** use o botão `AUTO` para alternar o combate automático.
+
+## O que está incluído
+
+### Direção visual
+
+- Herói procedural em pixel art com silhueta, armadura, capa, espada arcana e animações secundárias.
+- Chefe autoral **The Hollow Warden**, com aura, núcleo corrompido, chifres, reação a dano, morte e progressão por tiers.
+- Cenário em múltiplos planos com lua, montanhas, névoa, portal, ruínas, estrelas, partículas ambientais e foreground.
+- Paleta própria baseada em azul arcano, violeta corrompido, dourado e contraste profundo.
+
+### Combate e efeitos
+
+- Ataque básico, skill radial e ultimate de meteoro.
+- Cooldowns, energia, poção, combo e progressão de nível.
+- Boss attack com telegraph visível e janela de antecipação.
+- Hit stop, screen shake, flashes, trilhas de arma e partículas com física simples.
+- Números de dano, críticos, cura, barra de vida atrasada e mensagens de encontro.
+- Feedback sonoro procedural via Web Audio API após a primeira interação.
+
+### UI/UX
+
+- HUD de personagem com HP, energia e nível.
+- Barra de chefe com tier, vida numérica e telegraph de perigo.
+- Quest tracker, loot, XP, combo e barra de skills.
+- Layout adaptativo para desktop, tablet, mobile e orientação portrait/landscape.
+- Áreas de toque grandes e controles de teclado equivalentes.
+
+## Executar localmente
 
 ```bash
 npm install
 npm run dev
 ```
 
-Abra o endereço exibido pelo Vite.
-
-## Build estático
+## Validar e gerar build
 
 ```bash
+npm run typecheck
 npm run build
 npm run preview
 ```
 
-O build sai em `dist/`.
+O build estático é criado em `dist/`.
 
-## Deploy rápido
+## GitHub Pages
 
-### GitHub Pages
+O repositório inclui `.github/workflows/pages.yml`. Cada push na branch `main` executa o build e publica o conteúdo de `dist/` no GitHub Pages.
 
-Configure Pages para publicar via GitHub Actions. Este repo já inclui workflow em `.github/workflows/pages.yml`.
+Caso seja a primeira publicação, selecione em **Settings → Pages → Source** a opção **GitHub Actions**.
 
-### Netlify/Vercel/Cloudflare Pages
-
-- Build command: `npm run build`
-- Output directory: `dist`
-
-## Demo incluída
-
-- Herói espadachim 2D pixel art com idle, ataque e hit flash
-- Arma desenhada: espada curta com lâmina mágica azul
-- Armadura desenhada: azul escura, prata e detalhes dourados
-- Monstro autoral 2D pixel art: criatura corrompida da floresta, com olho roxo, chifres/galhos, garras e fogo do vazio
-- Cenário pixel art de floresta/ruínas, com camadas, chão em blocos e partículas
-- Barra de HP, dano flutuante, XP/gold popup e auto battle
-- Runtime Canvas TypeScript com arquitetura separada em entidades/cena/HUD
-
-## Arquivos principais
+## Estrutura principal
 
 ```text
-src/game/BattleScene.ts     # loop, combate, input e HUD
-src/game/pixelSprites.ts    # herói, arma, armadura, monstro, FX e cenário pixel art
-src/game/studioSprites.ts   # shim para manter compatibilidade, agora reexporta pixelSprites
-src/game/core.ts            # primitivas de canvas, easing, barras e hit testing
+src/main.ts                    bootstrap da aplicação
+src/styles.css                 shell responsivo e adaptação mobile
+src/game/BattleScene.ts        loop, combate, boss AI, HUD, input, áudio e FX
+src/game/pixelSprites.ts       cenário, herói, chefe, armas, skills e ícones
+src/game/core.ts               primitivas de desenho, easing, painéis e barras
+docs/VISUAL-OVERHAUL.md        direção visual e princípios de feedback
+.github/workflows/pages.yml    build e deploy no GitHub Pages
 ```
 
-## Observação sobre LayaAir
+## Escopo técnico
 
-A estrutura segue uma organização compatível com um projeto LayaAir-oriented: `assets` para recursos e `src` para código TypeScript. Esta POC inclui uma runtime web leve para garantir que você consiga hospedar e testar imediatamente. A próxima etapa é abrir no LayaAir IDE e trocar o renderer `CanvasRuntime` por cenas/nodes nativos do LayaAir, mantendo a mesma organização de entidades (`Player`, `Monster`, `BattleScene`, `FX`, `HUD`).
+Esta versão usa Canvas 2D procedural para manter o repositório leve e permitir iteração rápida. A arquitetura pode posteriormente ser migrada para spritesheets e cenas nativas de LayaAir, Phaser, PixiJS, Godot ou outra engine sem alterar os princípios de gameplay e direção visual definidos nesta vertical slice.
