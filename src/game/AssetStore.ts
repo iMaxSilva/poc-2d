@@ -80,14 +80,14 @@ export type GameAssets = {
 
 export const loadGameAssets = async (): Promise<GameAssets> => {
   const [background, heroImage, bossImage, effectsImage, iconsImage, heroPortrait, bossPortrait, minimap] = await Promise.all([
-    loadImage('assets/backgrounds/shadowed-sanctum.png'),
-    loadImage('assets/characters/hero.png'),
-    loadImage('assets/characters/boss.png'),
-    loadImage('assets/effects/combat.png'),
-    loadImage('assets/ui/icons.png'),
-    loadImage('assets/ui/hero-portrait.png'),
-    loadImage('assets/ui/boss-portrait.png'),
-    loadImage('assets/ui/minimap.png'),
+    loadImage('assets/backgrounds/shadowed-sanctum.svg'),
+    loadImage('assets/characters/hero.svg'),
+    loadImage('assets/characters/boss.svg'),
+    loadImage('assets/effects/combat.svg'),
+    loadImage('assets/ui/icons.svg'),
+    loadImage('assets/ui/hero-portrait.svg'),
+    loadImage('assets/ui/boss-portrait.svg'),
+    loadImage('assets/ui/minimap.svg'),
   ]);
 
   return {
