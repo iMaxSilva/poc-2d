@@ -1,42 +1,59 @@
-# Eternal Rift — 2D Pixel MMORPG Combat Vertical Slice
+# Eternal Rift — Pixel MMORPG Vertical Slice
 
-Uma vertical slice jogável de combate MMORPG 2D para web e mobile, construída com TypeScript, Canvas 2D e Vite.
+Uma vertical slice jogável de MMORPG 2D em pixel art para web e mobile, construída com TypeScript, Canvas 2D e Vite.
 
-A POC foi redesenhada para demonstrar direção de arte pixelizada, feedback de combate, skills, boss encounter, HUD responsivo e publicação estática no GitHub Pages sem dependências de runtime.
+A versão 2 abandona personagens desenhados diretamente por código e passa a usar um pipeline de assets real, com spritesheets PNG, animações por estado, efeitos separados e uma interface completa de jogo inspirada na leitura visual dos MMORPGs 2D clássicos — sem copiar assets, personagens ou identidade de terceiros.
 
-## Jogabilidade
+## Destaques da versão 2
 
-- **Ataque básico:** toque na arena ou use `Space`.
-- **Arc Nova:** use `Q` ou toque no ícone azul.
-- **Starfall:** use `R` ou toque no ícone de meteoro.
-- **Poção:** use `F` ou toque no frasco.
-- **Auto Battle:** use o botão `AUTO` para alternar o combate automático.
+### Sprites e animações
 
-## O que está incluído
+- Herói com spritesheet dedicado para `idle`, `attack`, `cast`, `hit` e `death`.
+- Chefe **Dread Sovereign Malgrath** com `idle`, `attack`, `hit` e `death`.
+- Efeitos em spritesheet próprio para `slash`, `nova` e `meteor`.
+- Renderização nearest-neighbor para preservar a leitura pixel art.
+- Sistema genérico `SpriteAnimator`, desacoplado da lógica de combate.
 
-### Direção visual
+### UI de MMORPG
 
-- Herói procedural em pixel art com silhueta, armadura, capa, espada arcana e animações secundárias.
-- Chefe autoral **The Hollow Warden**, com aura, núcleo corrompido, chifres, reação a dano, morte e progressão por tiers.
-- Cenário em múltiplos planos com lua, montanhas, névoa, portal, ruínas, estrelas, partículas ambientais e foreground.
-- Paleta própria baseada em azul arcano, violeta corrompido, dourado e contraste profundo.
+- HUD do personagem com retrato, nível, HP, mana e XP.
+- Barra central de chefe com tier, HP atrasado e telegraph de ataque.
+- Minimap e identificação da área.
+- Quest tracker e janela completa de quests.
+- Chat/combat log.
+- Hotbar com cooldowns, teclas, cargas e Auto Battle.
+- Menu lateral de Inventory, Skills, Guild, Quests e Settings.
+- Janelas interativas para cada seção.
+- Layout reduzido e adaptado em telas menores.
 
-### Combate e efeitos
+### Combate
 
-- Ataque básico, skill radial e ultimate de meteoro.
-- Cooldowns, energia, poção, combo e progressão de nível.
-- Boss attack com telegraph visível e janela de antecipação.
-- Hit stop, screen shake, flashes, trilhas de arma e partículas com física simples.
-- Números de dano, críticos, cura, barra de vida atrasada e mensagens de encontro.
-- Feedback sonoro procedural via Web Audio API após a primeira interação.
+- Ataque básico `Arc Slash`.
+- Skill `Arc Nova`.
+- Ultimate `Starfall`.
+- Poção de cura com quantidade de itens.
+- Auto Battle.
+- Combo, críticos, partículas, hit stop, flashes e screen shake.
+- Ataque do boss com telegraph visual.
+- Progressão de tier, XP, gold, level-up e loot.
+- SFX procedural via Web Audio API.
 
-### UI/UX
+## Controles
 
-- HUD de personagem com HP, energia e nível.
-- Barra de chefe com tier, vida numérica e telegraph de perigo.
-- Quest tracker, loot, XP, combo e barra de skills.
-- Layout adaptativo para desktop, tablet, mobile e orientação portrait/landscape.
-- Áreas de toque grandes e controles de teclado equivalentes.
+| Ação | Tecla |
+|---|---|
+| Ataque básico | `Space` ou `1` |
+| Arc Nova | `2` |
+| Starfall | `3` |
+| Poção | `4` ou `Z` |
+| Auto Battle | `A` |
+| Inventário | `I` |
+| Skills | `K` |
+| Guild | `G` |
+| Quests | `Q` |
+| Configurações/fechar | `Esc` |
+
+Todos os controles principais também funcionam por toque/clique.
 
 ## Executar localmente
 
@@ -53,26 +70,34 @@ npm run build
 npm run preview
 ```
 
-O build estático é criado em `dist/`.
+## Assets entregues
+
+```text
+public/assets/
+├── backgrounds/shadowed-sanctum.png
+├── characters/
+│   ├── hero.png
+│   └── boss.png
+├── effects/combat.png
+└── ui/
+    ├── icons.png
+    ├── hero-portrait.png
+    ├── boss-portrait.png
+    └── minimap.png
+```
+
+## Estrutura
+
+```text
+src/game/AssetStore.ts          carregamento dos PNGs e metadados
+src/game/SpriteAnimator.ts      runtime genérica de spritesheet
+src/game/BattleScene.ts         combate, estados, boss AI e efeitos
+src/game/ui/GameHUD.ts          HUD e janelas de MMORPG
+src/game/core.ts                primitivas de desenho e layout
+```
 
 ## GitHub Pages
 
-O repositório inclui `.github/workflows/pages.yml`. Cada push na branch `main` executa o build e publica o conteúdo de `dist/` no GitHub Pages.
+O workflow `.github/workflows/pages.yml` executa typecheck, build e deploy quando a branch `main` é atualizada.
 
-Caso seja a primeira publicação, selecione em **Settings → Pages → Source** a opção **GitHub Actions**.
-
-## Estrutura principal
-
-```text
-src/main.ts                    bootstrap da aplicação
-src/styles.css                 shell responsivo e adaptação mobile
-src/game/BattleScene.ts        loop, combate, boss AI, HUD, input, áudio e FX
-src/game/pixelSprites.ts       cenário, herói, chefe, armas, skills e ícones
-src/game/core.ts               primitivas de desenho, easing, painéis e barras
-docs/VISUAL-OVERHAUL.md        direção visual e princípios de feedback
-.github/workflows/pages.yml    build e deploy no GitHub Pages
-```
-
-## Escopo técnico
-
-Esta versão usa Canvas 2D procedural para manter o repositório leve e permitir iteração rápida. A arquitetura pode posteriormente ser migrada para spritesheets e cenas nativas de LayaAir, Phaser, PixiJS, Godot ou outra engine sem alterar os princípios de gameplay e direção visual definidos nesta vertical slice.
+Na primeira publicação, selecione **Settings → Pages → Source → GitHub Actions**.
