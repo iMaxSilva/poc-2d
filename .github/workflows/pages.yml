@@ -44,14 +44,36 @@ jobs:
           set -o pipefail
           npm run build 2>&1 | tee build.log
 
-      - name: Upload diagnostics
-        if: failure()
+      - name: Inspect Pages configuration
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            repos/${{ github.repository }}/pages 2>&1 | tee pages-status.log
+
+      - name: Upload verification diagnostics
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-diagnostics
+          path: |
+            typecheck.log
+            build.log
+            pages-status.log
+          if-no-files-found: ignore
+
+      - name: Upload failure diagnostics
+        if: failure() && github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: build-diagnostics
           path: |
             typecheck.log
             build.log
+            pages-status.log
           if-no-files-found: ignore
 
       - name: Setup Pages
