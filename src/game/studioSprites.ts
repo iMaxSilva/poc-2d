@@ -1,1 +1,12 @@
-export { drawBattlefield, drawHero, drawLogo, drawMonster, drawSlash } from './pixelSprites';
+export {
+  drawArcaneNova,
+  drawBattlefield,
+  drawBoss,
+  drawBossTelegraph,
+  drawHero,
+  drawLogo,
+  drawMeteor,
+  drawSkillIcon,
+  drawWeaponTrail,
+} from './pixelSprites';
+export type { SkillKind } from './pixelSprites';
